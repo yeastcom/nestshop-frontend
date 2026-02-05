@@ -15,8 +15,6 @@ export default async function Page() {
       method: "GET",
       schema: orderListSchema
   })
-  
-  console.log(data)
 
   return (
     <SidebarProvider

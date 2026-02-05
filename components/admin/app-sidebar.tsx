@@ -7,7 +7,9 @@ import {
   IconFolder,
   IconAddressBook,
   IconUsers,
-  IconBrandProducthunt
+  IconBrandProducthunt,
+  IconFileText,
+  IconMenu
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/admin/nav-main"
@@ -54,10 +56,20 @@ const data = {
       url: "/admin/customer",
       icon: IconUsers,
     },
-     {
+    {
       title: "Adresy",
       url: "/admin/address",
       icon: IconAddressBook,
+    },
+    {
+      title: "Strony CMS",
+      url: "/admin/cms",
+      icon: IconFileText
+    },
+    {
+      title: "Menu",
+      url: "/admin/menu",
+      icon: IconMenu
     },
   ],
 }

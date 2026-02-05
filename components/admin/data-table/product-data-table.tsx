@@ -338,7 +338,7 @@ export function ProductDataTable({
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-32">
-              <DropdownMenuItem>Edit</DropdownMenuItem>
+              <Link href={`/admin/product/${row.original.id}`}><DropdownMenuItem>Edit</DropdownMenuItem></Link>
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onClick={() => handleClickDelete(row.original.id)}>Delete</DropdownMenuItem>
             </DropdownMenuContent>

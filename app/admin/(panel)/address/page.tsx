@@ -17,7 +17,7 @@ export default async function Page() {
           method: "GET",
           schema: addressListSchema
       })
-   console.log(data)
+
   return (
     <SidebarProvider
       style={

@@ -17,8 +17,7 @@ export default async function Page() {
         method: "GET",
         schema: customerListSchema
     })
-    
-    console.log(data)
+  
 
   return (
     <SidebarProvider

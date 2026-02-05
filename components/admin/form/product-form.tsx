@@ -6,7 +6,6 @@ import { z } from "zod"
 import { categoryListSchema } from "@/lib/schemas/category.schema"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
@@ -22,27 +21,28 @@ import {
 import { CategoryTree } from "../category-tree"
 import {
     ProductImagesInput,
-    type LocalImage,
+    type ProductImage,
 } from "@/components/admin/product-images-input"
-import { buildCategoryTree, type CategoryFlat } from "@/lib/categories"
+import { RichTextEditor } from "@/components/RichTextEditor"
 import { useRouter } from "next/navigation"
 import { adminApiClient } from "@/lib/admin-api.client"
 import { ProductRow } from "@/lib/schemas/product.schema"
+import { productSchema } from "@/lib/schemas/product.schema"
 
-export default function ProductForm({ categories, tree }: { categories: z.infer<typeof categoryListSchema>, tree:  z.infer<typeof categoryListSchema> }) {
+export default function ProductForm({ product, categories, tree }: { product?: z.infer<typeof productSchema>, categories: z.infer<typeof categoryListSchema>, tree:  z.infer<typeof categoryListSchema> }) {
     // 1) flat list z propsów (jedno źródło prawdy)
 
     const router = useRouter()
     const [isSaving, setIsSaving] = React.useState(false)
 
-    const [name, setName] = React.useState("")
-    const [sku, setSku] = React.useState("")
-    const [slug, setSlug] = React.useState("")
-    const [description, setDescription] = React.useState("")
-    const [shortDescription, setShortDescription] = React.useState("")
-    const [price, setPrice] = React.useState("")        // "99.99"
-    const [stockQty, setStockQty] = React.useState("0") // trzymasz jako string w input
-    const [isActive, setIsActive] = React.useState(true)
+    const [name, setName] = React.useState(product ? product.name : "")
+    const [sku, setSku] = React.useState(product ? product.sku : "")
+    const [slug, setSlug] = React.useState(product ? product.slug : "")
+    const [description, setDescription] =React.useState<string>(product?.description ?? "")
+    const [shortDescription, setShortDescription] =React.useState<string>(product?.shortDescription ?? "")
+    const [price, setPrice] = React.useState(product ? product.price : "")
+    const [stockQty, setStockQty] = React.useState(product ? product.stockQty : "0")
+    const [isActive, setIsActive] = React.useState(product ? product.isActive : false)
 
     async function onSubmit(e: React.FormEvent) {
         e.preventDefault()
@@ -59,10 +59,8 @@ export default function ProductForm({ categories, tree }: { categories: z.infer<
 
         setIsSaving(true)
         try {
-            // 2) create product
-            const API_URL = process.env.NEXT_PUBLIC_API_URL
-            if (!API_URL) throw new Error("Missing NEXT_PUBLIC_API_URL")
-            const payload = {
+
+          const payload = {
                 name,
                 sku,
                 description,
@@ -73,34 +71,57 @@ export default function ProductForm({ categories, tree }: { categories: z.infer<
                 defaultCategoryId,
                 slug
             };
-
-            const product : ProductRow = await adminApiClient("/admin/products", {
-                method: "POST",
-                body: JSON.stringify(payload),
-            })
-
-
-
-            console.log(selectedCategoryIds);
-            await adminApiClient(`/admin/products/${product.id}/categories`, {
-                method: "POST",
-                body: JSON.stringify({ categoryIds: selectedCategoryIds }),
-            })
-
-            const files = images.map((i: any) => i.file).filter(Boolean) as File[]
-            const token = localStorage.getItem("admin_access_token")
-            for (let idx = 0; idx < files.length; idx++) {
-                const fd = new FormData()
-                fd.append("file", files[idx])
-
-                await adminApiClient(`/admin/products/${product.id}/images`, {
-                    method: "POST",
-                    body: fd,
+            if (product) {
+                const prod : ProductRow = await adminApiClient(`/admin/products/${product.id}`, {
+                    method: "PUT",
+                    body: JSON.stringify(payload),
                 })
-            }
 
-            toast.success("Dodano product")
-            router.push("/admin/product")
+                await adminApiClient(`/admin/products/${prod.id}/categories`, {
+                    method: "POST",
+                    body: JSON.stringify({ categoryIds: selectedCategoryIds }),
+                })
+
+                const files = images.map((i: any) => i.file).filter(Boolean) as File[]
+
+                for (let idx = 0; idx < files.length; idx++) {
+                    const fd = new FormData()
+                    fd.append("file", files[idx])
+
+                    await adminApiClient(`/admin/products/${prod.id}/images`, {
+                        method: "POST",
+                        body: fd,
+                    })
+                }
+
+                toast.success("Zaaktualizowano produkt")
+            } else {
+                const prod : ProductRow = await adminApiClient("/admin/products", {
+                    method: "POST",
+                    body: JSON.stringify(payload),
+                })
+
+                await adminApiClient(`/admin/products/${prod.id}/categories`, {
+                    method: "POST",
+                    body: JSON.stringify({ categoryIds: selectedCategoryIds }),
+                })
+
+                const files = images.map((i: any) => i.file).filter(Boolean) as File[]
+
+                for (let idx = 0; idx < files.length; idx++) {
+                    const fd = new FormData()
+                    fd.append("file", files[idx])
+
+                    await adminApiClient(`/admin/products/${prod.id}/images`, {
+                        method: "POST",
+                        body: fd,
+                    })
+                }
+
+                toast.success("Dodano product")
+                router.push("/admin/product")
+            }
+            
         } catch (err: any) {
             alert(err?.message ?? "Błąd zapisu")
         } finally {
@@ -108,24 +129,21 @@ export default function ProductForm({ categories, tree }: { categories: z.infer<
         }
     }
 
-    const categoriesFlat = React.useMemo<CategoryFlat[]>(() => {
-        return categories.map((c) => ({
-            id: c.id,
-            name: c.name,
-            parentId: c.parentId ?? null, // dopasuj nazwę pola jeśli masz inną
-        }))
-    }, [categories])
+    const categoryIds = [];
 
-
-    // 3) selected + default
-    const [selectedCategoryIds, setSelectedCategoryIds] = React.useState<number[]>([])
-    const [defaultCategoryId, setDefaultCategoryId] = React.useState<number | null>(null)
+    const productCategories = product?.categories ?? [];
+    for (const item of productCategories) {
+        categoryIds.push(item.id)
+    }
+    const [selectedCategoryIds, setSelectedCategoryIds] = React.useState<number[]>(categoryIds)
+    const [defaultCategoryId, setDefaultCategoryId] = React.useState<number | null>(product?.defaultCategoryId ?? null)
 
     // 4) select ma pokazywać tylko zaznaczone
     const defaultOptions = React.useMemo(() => {
         const selected = new Set(selectedCategoryIds)
-        return categoriesFlat.filter((c) => selected.has(c.id))
-    }, [categoriesFlat, selectedCategoryIds])
+
+        return categories.filter((c) => selected.has(c.id))
+    }, [categories, selectedCategoryIds])
 
     // 5) jeśli odznaczysz default w drzewku -> reset default
     React.useEffect(() => {
@@ -142,42 +160,56 @@ export default function ProductForm({ categories, tree }: { categories: z.infer<
         }
     }, [defaultCategoryId])
 
-    const [images, setImages] = React.useState<LocalImage[]>([])
+    const savedImages = product?.images ?? []
+    console.log(savedImages)
+    const oldImages : ProductImage[]= [];
+    
+    for (const item of savedImages) {
+        let tempImage : ProductImage  = {
+            id: item.id.toString(),
+            originalId: item.id,
+            position: item.position,
+            previewUrl: process.env.NEXT_PUBLIC_BACKEND_URL + item.urls.original,
+            cover: item.cover,
+            productId: item.productId
+        }
+        oldImages.push(tempImage)
+    }
+
+    const [images, setImages] = React.useState<ProductImage[]>(oldImages)
 
     return (
         <form onSubmit={onSubmit}>
             <div className="mx-auto w-full p-4">
                 <CardContent className="space-y-8">
                     <div className="space-y-4">
-                        <div className="text-sm font-medium">Dane podstawowe</div>
-
                         <div className="grid gap-2">
                             <Label htmlFor="name">Nazwa</Label>
-                            <Input id="name" onChange={(e) => setName(e.target.value)} />
+                            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
                         </div>
 
                         <div className="grid gap-2">
                             <Label htmlFor="description">Opis</Label>
-                            <Textarea id="description" onChange={(e) => setDescription(e.target.value)} />
+                            <RichTextEditor value={description} onChange={setDescription} />
                         </div>
 
                         <div className="grid gap-2">
                             <Label htmlFor="short_description">Podsumowanie</Label>
-                            <Textarea id="short_description" onChange={(e) => setShortDescription(e.target.value)} />
+                            <RichTextEditor value={shortDescription} onChange={setShortDescription} />
                         </div>
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <div className="grid gap-2">
                                 <Label htmlFor="sku">SKU</Label>
-                                <Input id="sku" onChange={(e) => setSku(e.target.value)} />
+                                <Input id="sku" value={sku} onChange={(e) => setSku(e.target.value)} />
                             </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="slug">SLUG</Label>
-                                <Input id="slug" onChange={(e) => setSlug(e.target.value)} />
+                                <Input id="slug" value={slug} onChange={(e) => setSlug(e.target.value)} />
                             </div>
                         </div>
 
 
-                        <ProductImagesInput value={images} onChange={setImages} />
+                        <ProductImagesInput savedImages={savedImages} value={images} onChange={setImages} />
 
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                             {/* 1/3 */}
@@ -242,12 +274,12 @@ export default function ProductForm({ categories, tree }: { categories: z.infer<
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <div className="grid gap-2">
                                 <Label htmlFor="price">Cena (PLN)</Label>
-                                <Input id="price" inputMode="decimal" placeholder="0" onChange={(e) => setPrice(e.target.value)} />
+                                <Input id="price" inputMode="decimal" value={price} placeholder="0" onChange={(e) => setPrice(e.target.value)} />
                             </div>
 
                             <div className="grid gap-2">
                                 <Label htmlFor="stockQty">Stock</Label>
-                                <Input id="stockQty" type="number" min={0} step={1} placeholder="0" onChange={(e) => setStockQty(e.target.value)} />
+                                <Input id="stockQty" type="number" value={stockQty} min={0} step={1} placeholder="0" onChange={(e) => setStockQty(e.target.value)} />
                             </div>
                         </div>
 
@@ -258,7 +290,7 @@ export default function ProductForm({ categories, tree }: { categories: z.infer<
                                     Wyłączone produkty nie będą widoczne w B2C.
                                 </div>
                             </div>
-                            <Switch defaultChecked />
+                            <Switch checked={isActive} onCheckedChange={setIsActive}  />
                         </div>
                     </div>
                 </CardContent>

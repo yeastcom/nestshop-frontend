@@ -1,21 +1,28 @@
 "use client"
 
+import { toast } from "sonner"
 import * as React from "react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { X } from "lucide-react"
+import { imageListSchema } from "@/lib/schemas/image.schema"
+import { z } from "zod"
+import { adminApiClient } from "@/lib/admin-api.client"
 
-export type LocalImage = {
+export type ProductImage = {
   id: string
-  file: File
+  originalId?: number
+  file?: File
   previewUrl: string
   cover: boolean
   position: number
+  productId?: number
 }
 
 type Props = {
-  value: LocalImage[]
-  onChange: (next: LocalImage[]) => void
+  value: ProductImage[]
+  savedImages: z.infer<typeof imageListSchema>
+  onChange: (next: ProductImage[]) => void
 }
 
 function makeId(file: File) {
@@ -24,7 +31,7 @@ function makeId(file: File) {
     .slice(2)}`
 }
 
-function normalize(next: LocalImage[]) {
+function normalize(next: ProductImage[]) {
   let out = next
     .slice()
     .sort((a, b) => a.position - b.position)
@@ -36,9 +43,9 @@ function normalize(next: LocalImage[]) {
   return out
 }
 
-export function ProductImagesInput({ value, onChange }: Props) {
+export function ProductImagesInput({ value, savedImages, onChange }: Props) {
   const [isDragOver, setIsDragOver] = React.useState(false)
-
+  const [images, setImages] = React.useState<ProductImage[]>(value)
   // sprzątanie blob URLs przy unmount
   React.useEffect(() => {
     return () => {
@@ -47,13 +54,22 @@ export function ProductImagesInput({ value, onChange }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  React.useEffect(() => {
+    return () => {
+      images.forEach((img) => URL.revokeObjectURL(img.previewUrl))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setImages])
+
+
+
   function addFilesFromList(files: FileList | null) {
     if (!files?.length) return
     const incoming = Array.from(files).filter((f) => f.type.startsWith("image/"))
     if (!incoming.length) return
 
     const startPos = value.length
-    const mapped: LocalImage[] = incoming.map((file, idx) => ({
+    const mapped: ProductImage[] = incoming.map((file, idx) => ({
       id: makeId(file),
       file,
       previewUrl: URL.createObjectURL(file),
@@ -62,34 +78,71 @@ export function ProductImagesInput({ value, onChange }: Props) {
     }))
 
     onChange(normalize([...value, ...mapped]))
+
+    setImages(normalize([...value, ...mapped]))
   }
 
-  function removeImage(id: string) {
+  async function removeImage(id: string) {
+    const image = value.find((x) => x.id === id)
+    
+    if (image?.originalId) {
+        await adminApiClient(`/admin/products/${image.productId}/images/${image.originalId}`, {
+            method: "DELETE",
+        })
+
+        toast.success("Usunięto zdjęcie")
+    }
+
     const removed = value.find((x) => x.id === id)
     if (removed) URL.revokeObjectURL(removed.previewUrl)
     onChange(normalize(value.filter((x) => x.id !== id)))
+
+    const temp = normalize(value.filter((x) => x.id !== id));
+    console.log(temp)
+    setImages(temp)
   }
 
-  function setCover(id: string) {
-    onChange(
-      normalize(
-        value.map((x) => ({
-          ...x,
-          cover: x.id === id,
-        })),
-      ),
-    )
+  async function setCover(id: string) {
+    const image = value.find((x) => x.id === id)
+    
+    if (image?.originalId) {
+        const productId = image.productId
+
+        await adminApiClient(`/admin/products/${image.productId}/images/${image.originalId}/cover`, {
+            method: "PATCH",
+        })
+
+        toast.success("Zaaktualizowano cover")
+    }
+
+    let temp = normalize(
+      value.map((x) => ({
+        ...x,
+        cover: x.id === id,
+      })),
+    );
+    onChange(temp)
+
+    setImages(temp)
   }
 
   function moveImage(id: string, dir: -1 | 1) {
+
     const idx = value.findIndex((x) => x.id === id)
+
     if (idx === -1) return
     const nextIdx = idx + dir
     if (nextIdx < 0 || nextIdx >= value.length) return
 
     const next = [...value]
+    const tempPosition = next[idx].position;
+
+    next[idx].position = next[nextIdx].position
+    next[nextIdx].position = tempPosition;
     ;[next[idx], next[nextIdx]] = [next[nextIdx], next[idx]]
     onChange(normalize(next))
+
+    setImages(next)
   }
 
   function onDrop(e: React.DragEvent<HTMLDivElement>) {
@@ -112,6 +165,8 @@ export function ProductImagesInput({ value, onChange }: Props) {
     e.stopPropagation()
     setIsDragOver(false)
   }
+
+  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
 
   return (
     <div className="flex flex-col gap-3">
@@ -140,13 +195,14 @@ export function ProductImagesInput({ value, onChange }: Props) {
         </div>
       </div>
 
-      {value.length === 0 ? (
+      {images.length === 0 && savedImages.length == 0 ? (
         <div className="rounded-md border p-4 text-sm text-muted-foreground">
           Brak zdjęć.
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-6">
-          {value
+
+          {images
             .slice()
             .sort((a, b) => a.position - b.position)
             .map((img) => (
@@ -155,26 +211,28 @@ export function ProductImagesInput({ value, onChange }: Props) {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={img.previewUrl}
-                    alt={img.file.name}
                     className="h-full w-full object-cover"
                   />
                 </div>
-
-                {img.cover && (
-                  <div className="mt-2 rounded bg-primary px-2 py-1 text-center text-[11px] text-primary-foreground">
-                    COVER
-                  </div>
-                )}
-
                 <div className="mt-2 flex flex-col gap-2">
-                  <Button
+                  {img.cover == true ? (
+                      <div
+                      style={{fontSize: "14px", padding: "5px", marginBottom: "1px"}}
+                        className="rounded bg-primary px-2 text-center text-[11px] text-primary-foreground"
+                      >
+                        COVER
+                      </div>
+                  ): <Button
                     type="button"
                     variant={img.cover ? "secondary" : "outline"}
                     size="sm"
                     onClick={() => setCover(img.id)}
                   >
                     Ustaw jako cover
-                  </Button>
+                  </Button>}
+
+
+
 
                   <div className="flex gap-2">
                     <Button

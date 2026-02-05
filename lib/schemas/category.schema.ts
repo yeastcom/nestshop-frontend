@@ -1,5 +1,6 @@
 import { z } from "zod"
 
+
 export const categorySchema: z.ZodType<CategoryDto> = z.lazy(() =>
   z.object({
     id: z.number(),

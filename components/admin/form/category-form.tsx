@@ -19,15 +19,13 @@ import {
 } from "@/components/ui/select"
 
 import { CategoryTree } from "../category-tree"
-import { buildCategoryTree, type CategoryFlat } from "@/lib/categories"
 import { useRouter } from "next/navigation"
 import { adminApiClient } from "@/lib/admin-api.client"
-import { ProductRow } from "@/lib/schemas/product.schema"
+import { RichTextEditor } from "@/components/RichTextEditor"
 import { categoryListSchema, categorySchema } from "@/lib/schemas/category.schema"
 
 export default function CategoryForm({ tree, category }: {tree: z.infer<typeof categoryListSchema> , category?: z.infer<typeof categorySchema> }) {
     // 1) flat list z propsów (jedno źródło prawdy)
-    console.log(tree)
     const router = useRouter()
     const [isSaving, setIsSaving] = React.useState(false)
 
@@ -102,7 +100,7 @@ export default function CategoryForm({ tree, category }: {tree: z.infer<typeof c
 
                         <div className="grid gap-2">
                             <Label htmlFor="description">Opis</Label>
-                            <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} />
+                            <RichTextEditor value={description} onChange={setDescription} />
                         </div>
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                             <div className="grid gap-2 md:col-span-2">

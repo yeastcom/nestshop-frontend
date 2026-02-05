@@ -16,7 +16,7 @@ export default async function Page() {
 
   // endpoint dostosuj do siebie (admin lub public)
   const tree = await adminApiServer("/admin/categories/tree", { method: "GET", schema: categoryListSchema })
-  const categories = await adminApiServer("/admin/categories", { method: "GET", schema: categoryListSchema })
+  const categories = await adminApiServer("/admin/categories/all", { method: "GET", schema: categoryListSchema })
 
   return (
     <SidebarProvider

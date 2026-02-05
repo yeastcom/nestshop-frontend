@@ -6,6 +6,7 @@ export const imageUrlSchema = z.object({
   small_default: z.string(),
   medium_default: z.string(),
   home_default: z.string(),
+  large_default: z.string()
 })
 
 export const imageSchema = z.object({
@@ -15,5 +16,7 @@ export const imageSchema = z.object({
   productId: z.number(),
   urls: imageUrlSchema,
 })
+
+export const imageListSchema = z.array(imageSchema)
 
 export type ImagesRow = z.infer<typeof imageSchema>

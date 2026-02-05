@@ -4,22 +4,44 @@ import type { NextRequest } from "next/server"
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
-  if (!pathname.startsWith("/admin")) return NextResponse.next()
+  // --- ADMIN ---
+  if (pathname.startsWith("/admin")) {
+    if (pathname === "/admin/login") {
+      const sid = req.cookies.get("admin.sid")?.value
+      console.log(sid)
+      if (sid) return NextResponse.redirect(new URL("/admin", req.url))
+      return NextResponse.next()
+    }
 
-  // publiczny login
-  if (pathname === "/admin/login") {
     const sid = req.cookies.get("admin.sid")?.value
-    if (sid) return NextResponse.redirect(new URL("/admin", req.url))
+    if (!sid) return NextResponse.redirect(new URL("/admin/login", req.url))
+
     return NextResponse.next()
   }
 
-  // reszta admina
-  const sid = req.cookies.get("admin.sid")?.value
-  if (!sid) {
-    return NextResponse.redirect(new URL("/admin/login", req.url))
+  // --- ACCOUNT (CUSTOMER) ---
+  if (pathname.startsWith("/account")) {
+    const sid = req.cookies.get("customer.sid")?.value
+    console.log(sid)
+    const isLoggedIn = Boolean(sid)
+
+    const isAuthPage =
+      pathname === "/account/login" || pathname === "/account/register"
+
+    if (isLoggedIn && isAuthPage) {
+      return NextResponse.redirect(new URL("/account", req.url))
+    }
+
+    if (!isLoggedIn && !isAuthPage) {
+      return NextResponse.redirect(new URL("/account/login", req.url))
+    }
+
+    return NextResponse.next()
   }
 
   return NextResponse.next()
 }
 
-export const config = { matcher: ["/admin/:path*"] }
+export const config = {
+  matcher: ["/admin/:path*", "/account/:path*"],
+}
