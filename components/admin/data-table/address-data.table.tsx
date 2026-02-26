@@ -1,5 +1,4 @@
 "use client"
-import { toast } from "sonner"
 import * as React from "react"
 import {
     closestCenter,
@@ -21,17 +20,10 @@ import {
 } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import {
-    IconChevronDown,
     IconChevronLeft,
     IconChevronRight,
     IconChevronsLeft,
     IconChevronsRight,
-    IconCircleCheckFilled,
-    IconDotsVertical,
-    IconGripVertical,
-    IconLayoutColumns,
-    IconPlus,
-    IconXboxXFilled
 } from "@tabler/icons-react"
 import {
     flexRender,
@@ -48,20 +40,9 @@ import {
     type SortingState,
     type VisibilityState,
 } from "@tanstack/react-table"
-import Link from 'next/link'
 import { z } from "zod"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import {
-    DropdownMenu,
-    DropdownMenuCheckboxItem,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
 import {
     Select,
@@ -87,27 +68,6 @@ import { addressSchema } from "@/lib/schemas/address.schema"
 
 export const schema = addressSchema;
 
-
-
-// Create a separate component for the drag handle
-function DragHandle({ id }: { id: number }) {
-    const { attributes, listeners } = useSortable({
-        id,
-    })
-
-    return (
-        <Button
-            {...attributes}
-            {...listeners}
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground size-7 hover:bg-transparent"
-        >
-            <IconGripVertical className="text-muted-foreground size-3" />
-            <span className="sr-only">Drag to reorder</span>
-        </Button>
-    )
-}
 
 
 function DraggableRow({ row }: { row: Row<z.infer<typeof schema>> }) {
@@ -178,7 +138,7 @@ export function AddressDataTable({
             accessorKey: "customer",
             header: () => <div >Klient</div>,
             cell: ({ row }) => {
-                return row.original.customer.firstName + ' ' + row.original.customer.lastName
+                return row.original.customer?.firstName  + " " + row.original.customer?.lastName 
             },
             enableHiding: false,
         },

@@ -1,7 +1,4 @@
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { IconUserFilled, IconLogout, IconAddressBook, IconBasketCheck } from "@tabler/icons-react"
-import AccountSideBar from "@/components/store/customer/accont-side-bar"
+import AccountSideBar from "@/components/store/customer/account-side-bar"
 
 export default function AccountLayout({ children }: { children: React.ReactNode }) {
   return (

@@ -21,7 +21,7 @@ export const cartSchema = z.object({
     customer: customerSchema.optional(),
     status: z.string(),
     items: cartItemListSchema,
-    createdAt: z.string().datetime(),
-    updatedAt: z.string().datetime(),
+    createdAt: z.iso.datetime(),
+    updatedAt: z.iso.datetime(),
 })
 

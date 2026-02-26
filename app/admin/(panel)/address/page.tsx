@@ -1,7 +1,5 @@
 import { AppSidebar } from "@/components/admin/app-sidebar"
-import { ChartAreaInteractive } from "@/components/admin/chart-area-interactive"
 import { AddressDataTable } from "@/components/admin/data-table/address-data.table"
-import { SectionCards } from "@/components/admin/section-cards"
 import { SiteHeader } from "@/components/admin/site-header"
 import {
   SidebarInset,

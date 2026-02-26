@@ -31,8 +31,6 @@ export async function adminApiClient<T>(
 
   if (res.status === 204) return undefined as T
 
-
-  console.log(res)
   const json: unknown = await res.json()
   if (options.schema) return options.schema.parse(json)
   return json as T

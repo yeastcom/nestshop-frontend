@@ -50,7 +50,7 @@ export default function ProductForm({ product, categories, tree }: { product?: z
         // 1) walidacje frontowe
         if (!name.trim()) return alert("Podaj nazwę")
         if (!sku.trim()) return alert("Podaj SKU")
-        if (!sku.trim()) return alert("Podaj SLUG")
+        if (!slug.trim()) return alert("Podaj SLUG")
         if (!defaultCategoryId) return alert("Wybierz kategorię domyślną")
         if (!selectedCategoryIds.includes(defaultCategoryId)) {
             // pilnujesz reguły: default musi być w zaznaczonych
@@ -161,7 +161,6 @@ export default function ProductForm({ product, categories, tree }: { product?: z
     }, [defaultCategoryId])
 
     const savedImages = product?.images ?? []
-    console.log(savedImages)
     const oldImages : ProductImage[]= [];
     
     for (const item of savedImages) {
@@ -296,8 +295,8 @@ export default function ProductForm({ product, categories, tree }: { product?: z
                 </CardContent>
 
                 <CardFooter className="mt-5 flex items-center justify-end gap-2">
-                    <Button type="submit" disabled={!defaultCategoryId}>
-                        Zapisz
+                    <Button type="submit" disabled={!defaultCategoryId || isSaving}>
+                        {isSaving ? "Zapisywanie..." : "Zapisz"}
                     </Button>
                 </CardFooter>
             </div>

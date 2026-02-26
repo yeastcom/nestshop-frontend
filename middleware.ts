@@ -8,7 +8,6 @@ export function middleware(req: NextRequest) {
   if (pathname.startsWith("/admin")) {
     if (pathname === "/admin/login") {
       const sid = req.cookies.get("admin.sid")?.value
-      console.log(sid)
       if (sid) return NextResponse.redirect(new URL("/admin", req.url))
       return NextResponse.next()
     }
@@ -22,7 +21,6 @@ export function middleware(req: NextRequest) {
   // --- ACCOUNT (CUSTOMER) ---
   if (pathname.startsWith("/account")) {
     const sid = req.cookies.get("customer.sid")?.value
-    console.log(sid)
     const isLoggedIn = Boolean(sid)
 
     const isAuthPage =

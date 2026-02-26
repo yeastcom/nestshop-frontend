@@ -46,7 +46,6 @@ export function AddToCartButton({
   showQtyInput = false,
   defaultQty = 1,
 }: Props) {
-    console.log(product)
     const cover = product.images.find((img) => img.cover === true);
   const [open, setOpen] = React.useState(false)
   const [loading, setLoading] = React.useState(false)

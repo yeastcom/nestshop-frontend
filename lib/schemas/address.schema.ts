@@ -1,12 +1,22 @@
 // src/lib/schemas/address.schema.ts
 import { z } from "zod"
-import { customerSchema } from "./customer.schema"
 export const addressTypeSchema = z.enum(["shipping", "billing"])
+
+export const customerSchemaAddress = z.object({
+  id: z.number(),
+  email: z.email(),
+  firstName: z.string(),
+  lastName: z.string(),
+  isActive: z.boolean(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+})
 
 
 export const addressSchema = z.object({
   id: z.number(),
   customerId: z.number(),
+  customer: customerSchemaAddress.optional(),
   type: addressTypeSchema,
   company: z.string().nullable().optional(),
   vatId: z.string().nullable().optional(),

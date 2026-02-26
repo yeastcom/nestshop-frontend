@@ -1,14 +1,31 @@
 // cart-context.tsx
 "use client"
 import React from "react"
+import { z } from "zod"
+import { cartSchema } from "@/lib/schemas/cart.schema"
 
-const CartCtx = React.createContext<any>(null)
+type CartRow = z.infer<typeof cartSchema>
 
-export function CartProvider({ initialCart, children }: any) {
-  const [cart, setCart] = React.useState(initialCart)
+type CartContextType = {
+  cart: CartRow | null
+  setCart: React.Dispatch<React.SetStateAction<CartRow | null>>
+}
+
+type CartProviderProps = {
+  initialCart: CartRow | null
+  children: React.ReactNode
+}
+
+const CartCtx = React.createContext<CartContextType | null>(null)
+
+export function CartProvider({ initialCart, children }: CartProviderProps) {
+  const [cart, setCart] = React.useState<CartRow | null>(initialCart)
 
   React.useEffect(() => {
-    const onChanged = (e: any) => e.detail && setCart(e.detail)
+    const onChanged = (e: Event) => {
+      const detail = (e as CustomEvent<CartRow>).detail
+      if (detail) setCart(detail)
+    }
     window.addEventListener("cart:changed", onChanged)
 
     return () => window.removeEventListener("cart:changed", onChanged)
@@ -17,6 +34,8 @@ export function CartProvider({ initialCart, children }: any) {
   return <CartCtx.Provider value={{ cart, setCart }}>{children}</CartCtx.Provider>
 }
 
-export function useCart() {
-  return React.useContext(CartCtx)
+export function useCart(): CartContextType {
+  const ctx = React.useContext(CartCtx)
+  if (!ctx) throw new Error("useCart must be used within CartProvider")
+  return ctx
 }

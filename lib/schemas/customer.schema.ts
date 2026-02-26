@@ -3,14 +3,17 @@ import { z } from "zod"
 import { addressListSchema } from "./address.schema"
 export const customerSchema = z.object({
   id: z.number(),
-  email: z.string().email(),
+  email: z.email(),
   firstName: z.string(),
   lastName: z.string(),
   isActive: z.boolean(),
   addresses: addressListSchema.optional(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
 })
+
+
+
 
 export const customerListSchema = z.array(customerSchema)
 

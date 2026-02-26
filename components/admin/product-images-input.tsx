@@ -46,20 +46,20 @@ function normalize(next: ProductImage[]) {
 export function ProductImagesInput({ value, savedImages, onChange }: Props) {
   const [isDragOver, setIsDragOver] = React.useState(false)
   const [images, setImages] = React.useState<ProductImage[]>(value)
-  // sprzątanie blob URLs przy unmount
-  React.useEffect(() => {
-    return () => {
-      value.forEach((img) => URL.revokeObjectURL(img.previewUrl))
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  const imagesRef = React.useRef(images)
 
   React.useEffect(() => {
+    imagesRef.current = images
+  }, [images])
+
+  // sprzątanie blob URLs przy unmount (tylko nowe pliki, nie zapisane)
+  React.useEffect(() => {
     return () => {
-      images.forEach((img) => URL.revokeObjectURL(img.previewUrl))
+      imagesRef.current
+        .filter((img) => img.file)
+        .forEach((img) => URL.revokeObjectURL(img.previewUrl))
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setImages])
+  }, [])
 
 
 
@@ -98,7 +98,6 @@ export function ProductImagesInput({ value, savedImages, onChange }: Props) {
     onChange(normalize(value.filter((x) => x.id !== id)))
 
     const temp = normalize(value.filter((x) => x.id !== id));
-    console.log(temp)
     setImages(temp)
   }
 
@@ -106,8 +105,6 @@ export function ProductImagesInput({ value, savedImages, onChange }: Props) {
     const image = value.find((x) => x.id === id)
     
     if (image?.originalId) {
-        const productId = image.productId
-
         await adminApiClient(`/admin/products/${image.productId}/images/${image.originalId}/cover`, {
             method: "PATCH",
         })
@@ -165,8 +162,6 @@ export function ProductImagesInput({ value, savedImages, onChange }: Props) {
     e.stopPropagation()
     setIsDragOver(false)
   }
-
-  const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL
 
   return (
     <div className="flex flex-col gap-3">

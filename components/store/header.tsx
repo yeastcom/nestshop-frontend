@@ -14,8 +14,6 @@ export async function Header({cart}: {cart: z.infer<typeof cartSchema>,}) {
         schema: menuListSchema
       });
 
-      console.log(cart)
-
     return (
         <div className="mt-5 mx-auto container grid grid-cols-2 px-4 md:px-0">
             <div className="grid gap-2">
