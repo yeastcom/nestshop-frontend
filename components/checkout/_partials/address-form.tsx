@@ -54,7 +54,6 @@ export function AddressForm({
       phone: "",
       isDefault: false,
       ...initialValues,
-      type, // wymuszamy
     },
     mode: "onSubmit",
   })
