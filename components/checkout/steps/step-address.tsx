@@ -9,216 +9,267 @@ import { addressSchema } from "@/lib/schemas/address.schema"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { AddressForm, type AddressFormValues } from "../_partials/address-form"
+import { cartApi } from "@/lib/cart-api"
 import { apiClient } from "@/lib/api.client"
 
 type StepStatus = "current" | "complete" | "disabled"
 type AddressDto = z.infer<typeof addressSchema>
 
+function AddressRadio({
+  addr,
+  checked,
+  onPick,
+}: {
+  addr: AddressDto
+  checked: boolean
+  onPick: () => void
+}) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3 hover:bg-accent">
+      <input type="radio" checked={checked} onChange={onPick} className="mt-1" />
+      <div className="text-sm">
+        <div className="font-medium">
+          {addr.street}, {addr.postalCode} {addr.city}
+        </div>
+        <div className="text-muted-foreground">
+          {addr.countryCode}
+          {addr.phone ? ` • ${addr.phone}` : ""}
+          {addr.company ? ` • ${addr.company}` : ""}
+        </div>
+      </div>
+    </label>
+  )
+}
+
+function AddressSummary({ addr }: { addr: AddressDto }) {
+  return (
+    <div className="text-sm">
+      <p className="font-medium">{addr.street}, {addr.postalCode} {addr.city}</p>
+      <p className="text-muted-foreground">{addr.countryCode}{addr.phone ? ` • ${addr.phone}` : ""}</p>
+    </div>
+  )
+}
+
 export default function CheckoutStepAddress({
   status,
   cart,
   customer,
+  onDone,
+  onEdit,
 }: {
   status: StepStatus
   cart: z.infer<typeof cartSchema>
   customer?: z.infer<typeof customerSchema>
+  onDone: (deliveryAddressId: number, invoiceAddressId: number | null) => void
+  onEdit: () => void
 }) {
-  let description: React.ReactNode = null
+  const initialAddresses = (customer?.addresses ?? []) as AddressDto[]
+  const [addresses, setAddresses] = React.useState<AddressDto[]>(initialAddresses)
 
-  const [useDifferentBilling, setUseDifferentBilling] = React.useState(false)
+  const shippingAddresses = addresses.filter((a) => a.type === "shipping")
+  const billingAddresses = addresses.filter((a) => a.type === "billing")
 
-  // lokalny wybór (na start)
-  const [selectedShippingId, setSelectedShippingId] = React.useState<number | null>(null)
-  const [selectedBillingId, setSelectedBillingId] = React.useState<number | null>(null)
+  const defaultShipping = shippingAddresses.find((a) => a.isDefault) ?? shippingAddresses[0]
+  const defaultBilling = billingAddresses.find((a) => a.isDefault) ?? billingAddresses[0]
 
-  if (status === "disabled") {
-    description = "Adres będziesz mógł wypełnić po uzupełnieniu danych klienta"
-  } else if (status === "current") {
-    description = "Wybierz adres dostawy"
+  const [selectedShippingId, setSelectedShippingId] = React.useState<number | null>(
+    cart.deliveryAddress?.id ?? defaultShipping?.id ?? null
+  )
+  const [selectedBillingId, setSelectedBillingId] = React.useState<number | null>(
+    cart.invoiceAddress?.id ?? defaultBilling?.id ?? null
+  )
+  const [useDifferentBilling, setUseDifferentBilling] = React.useState(!!cart.invoiceAddress)
+  const [showNewShipping, setShowNewShipping] = React.useState(shippingAddresses.length === 0)
+  const [showNewBilling, setShowNewBilling] = React.useState(false)
+  const [saving, setSaving] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  // sync addresses when customer changes (e.g. after re-mount)
+  React.useEffect(() => {
+    setAddresses((customer?.addresses ?? []) as AddressDto[])
+  }, [customer])
+
+  async function createAddress(values: AddressFormValues) {
+    if (!customer?.id) throw new Error("Brak customerId")
+    const created = await apiClient<AddressDto>(`/customers/${customer.id}/addresses`, {
+      method: "POST",
+      body: JSON.stringify(values),
+    })
+    setAddresses((prev) => [...prev, created])
+    if (created.type === "shipping") {
+      setSelectedShippingId(created.id)
+      setShowNewShipping(false)
+    }
+    if (created.type === "billing") {
+      setSelectedBillingId(created.id)
+      setShowNewBilling(false)
+    }
   }
 
-  if (status !== "current") {
+  async function handleSubmit() {
+    if (!selectedShippingId) return
+    setSaving(true)
+    setError(null)
+    try {
+      const invoiceAddressId = useDifferentBilling ? (selectedBillingId ?? null) : null
+      await cartApi("/cart", {
+        method: "PATCH",
+        body: JSON.stringify({
+          deliveryAddressId: selectedShippingId,
+          ...(invoiceAddressId ? { invoiceAddressId } : {}),
+        }),
+      })
+      onDone(selectedShippingId, invoiceAddressId)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Błąd zapisu adresu")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // --- DISABLED ---
+  if (status === "disabled") {
     return (
       <Card className="mt-5">
         <CardHeader>
-          <CardTitle>Adres</CardTitle>
-          <CardDescription>{description}</CardDescription>
+          <CardTitle>Adres dostawy</CardTitle>
+          <CardDescription>Adres będziesz mógł wypełnić po uzupełnieniu danych klienta</CardDescription>
         </CardHeader>
       </Card>
     )
   }
 
-  const addresses = (customer?.addresses ?? []) as AddressDto[]
-  const shippingAddresses = addresses.filter((a) => a.type === "shipping")
-  const billingAddresses = addresses.filter((a) => a.type === "billing")
+  // --- COMPLETE ---
+  if (status === "complete") {
+    const deliveryAddr = addresses.find((a) => a.id === selectedShippingId)
+    const invoiceAddr = useDifferentBilling ? addresses.find((a) => a.id === selectedBillingId) : null
 
-  async function createAddress(values: AddressFormValues) {
-    if (!customer?.id) throw new Error("Brak customerId")
-
-    // zakładam, że backend ma: POST /customers/:id/addresses
-    const created = await apiClient<AddressDto>(`/customers/${customer.id}/addresses`, {
-      method: "POST",
-      body: JSON.stringify(values),
-      headers: { "Content-Type": "application/json" },
-    })
-
-    // tu najlepiej: odświeżyć customer (albo dispatch event i w kontekscie podmienić)
-    // MVP: ustawiamy od razu zaznaczony adres na nowo utworzony
-    if (created.type === "shipping") setSelectedShippingId(created.id)
-    if (created.type === "billing") setSelectedBillingId(created.id)
-
-    // TODO: odśwież dane customer/addresses w parent/state
-  }
-
-  function AddressRadio({
-    addr,
-    checked,
-    onPick,
-  }: {
-    addr: AddressDto
-    checked: boolean
-    onPick: () => void
-  }) {
     return (
-      <label className="flex cursor-pointer items-start gap-3 rounded-md border p-3 hover:bg-accent">
-        <input
-          type="radio"
-          checked={checked}
-          onChange={onPick}
-          className="mt-1"
-        />
-        <div className="text-sm">
-          <div className="font-medium">
-            {addr.street}, {addr.postalCode} {addr.city}
-          </div>
-          <div className="text-muted-foreground">
-            {addr.countryCode}
-            {addr.phone ? ` • ${addr.phone}` : ""}
-            {addr.company ? ` • ${addr.company}` : ""}
-          </div>
-        </div>
-      </label>
+      <Card className="mt-5">
+        <CardHeader>
+          <CardTitle>Adres dostawy</CardTitle>
+          <CardDescription>
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-2">
+                {deliveryAddr && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Dostawa</p>
+                    <AddressSummary addr={deliveryAddr} />
+                  </div>
+                )}
+                {invoiceAddr && (
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-0.5">Faktura</p>
+                    <AddressSummary addr={invoiceAddr} />
+                  </div>
+                )}
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={onEdit}>
+                Zmień
+              </Button>
+            </div>
+          </CardDescription>
+        </CardHeader>
+      </Card>
     )
   }
+
+  // --- CURRENT ---
+  const canContinue = !!selectedShippingId && (!useDifferentBilling || !!selectedBillingId)
 
   return (
     <Card className="mt-5">
       <CardHeader>
-        <CardTitle>Adres</CardTitle>
-        <CardDescription>{description}</CardDescription>
+        <CardTitle>Adres dostawy</CardTitle>
       </CardHeader>
 
       <CardContent className="space-y-6">
         {/* SHIPPING */}
         <div className="space-y-3">
-
-          {shippingAddresses.length > 0 ? (
-            <div className="space-y-2">
+          {shippingAddresses.length > 0 && !showNewShipping && (
+            <>
               {shippingAddresses.map((a) => (
                 <AddressRadio
                   key={a.id}
                   addr={a}
-                  checked={selectedShippingId === a.id || (!selectedShippingId && a.isDefault)}
+                  checked={selectedShippingId === a.id}
                   onPick={() => setSelectedShippingId(a.id)}
                 />
               ))}
-              <div className="pt-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setSelectedShippingId(null)}
-                >
-                  Dodaj nowy adres dostawy
-                </Button>
-              </div>
+              <Button type="button" variant="outline" size="sm" onClick={() => { setShowNewShipping(true); setSelectedShippingId(null) }}>
+                + Nowy adres dostawy
+              </Button>
+            </>
+          )}
 
-              {/* jeśli user kliknął “dodaj nowy” */}
-              {selectedShippingId === null && (
-                <div>
-                  <AddressForm
-                    type="shipping"
-                    onSubmit={createAddress}
-                    submitLabel="Dodaj adres dostawy"
-                  />
-                </div>
+          {showNewShipping && (
+            <div className="space-y-3">
+              <AddressForm type="shipping" onSubmit={createAddress} submitLabel="Dodaj adres dostawy" />
+              {shippingAddresses.length > 0 && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => { setShowNewShipping(false); setSelectedShippingId(defaultShipping?.id ?? null) }}>
+                  Anuluj
+                </Button>
               )}
-            </div>
-          ) : (
-            <div >
-              <AddressForm
-                type="shipping"
-                onSubmit={createAddress}
-                submitLabel="Dodaj adres dostawy"
-              />
             </div>
           )}
         </div>
 
         {/* BILLING TOGGLE */}
         <div className="space-y-3">
-          <label className="flex cursor-pointer items-center gap-2 text-sm">
-            <input
-              type="checkbox"
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="diffBilling"
               checked={useDifferentBilling}
-              onChange={(e) => setUseDifferentBilling(e.target.checked)}
+              onCheckedChange={(v) => {
+                setUseDifferentBilling(!!v)
+                if (!v) setShowNewBilling(false)
+              }}
             />
-            <span>Inny adres do faktury niż adres dostawy</span>
-          </label>
+            <Label htmlFor="diffBilling" className="cursor-pointer font-normal">
+              Inny adres do faktury
+            </Label>
+          </div>
 
           {useDifferentBilling && (
             <div className="space-y-3">
-              <div className="text-sm font-medium">Adres do faktury</div>
-
-              {billingAddresses.length > 0 ? (
-                <div className="space-y-2">
+              {billingAddresses.length > 0 && !showNewBilling && (
+                <>
                   {billingAddresses.map((a) => (
                     <AddressRadio
                       key={a.id}
                       addr={a}
-                      checked={selectedBillingId === a.id || (!selectedBillingId && a.isDefault)}
+                      checked={selectedBillingId === a.id}
                       onPick={() => setSelectedBillingId(a.id)}
                     />
                   ))}
+                  <Button type="button" variant="outline" size="sm" onClick={() => { setShowNewBilling(true); setSelectedBillingId(null) }}>
+                    + Nowy adres do faktury
+                  </Button>
+                </>
+              )}
 
-                  <div className="pt-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setSelectedBillingId(null)}
-                    >
-                      Dodaj nowy adres do faktury
+              {(showNewBilling || billingAddresses.length === 0) && (
+                <div className="space-y-3">
+                  <AddressForm type="billing" onSubmit={createAddress} submitLabel="Dodaj adres do faktury" />
+                  {billingAddresses.length > 0 && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => { setShowNewBilling(false); setSelectedBillingId(defaultBilling?.id ?? null) }}>
+                      Anuluj
                     </Button>
-                  </div>
-
-                  {selectedBillingId === null && (
-                    <div >
-                      <AddressForm
-                        type="billing"
-                        onSubmit={createAddress}
-                        submitLabel="Dodaj adres do faktury"
-                      />
-                    </div>
                   )}
-                </div>
-              ) : (
-                <div>
-                  <AddressForm
-                    type="billing"
-                    onSubmit={createAddress}
-                    submitLabel="Dodaj adres do faktury"
-                  />
                 </div>
               )}
             </div>
           )}
         </div>
 
-        {/* TODO: dalej przycisk “Dalej” i zapis wyboru do cart/checkout */}
+        {error && <p className="text-sm text-destructive">{error}</p>}
+
         <div className="flex justify-end">
-          <Button type="button" disabled={!selectedShippingId && shippingAddresses.length > 0}>
-            Dalej
+          <Button type="button" disabled={!canContinue || saving} onClick={handleSubmit}>
+            {saving ? "Zapisywanie…" : "Dalej"}
           </Button>
         </div>
       </CardContent>

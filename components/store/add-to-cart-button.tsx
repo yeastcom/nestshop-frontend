@@ -76,12 +76,12 @@ export function AddToCartButton({
 
     setLoading(true)
     try {
-      await addToCart(product.id, safeQty)
+      const updatedCart = await addToCart(product.id, safeQty)
+      window.dispatchEvent(new CustomEvent("cart:changed", { detail: updatedCart }))
       setOpen(true)
     } catch (e: any) {
       setError(e?.message ?? "Nie udało się dodać do koszyka")
     } finally {
-      window.dispatchEvent(new Event("cart:changed"))
       setLoading(false)
     }
   }

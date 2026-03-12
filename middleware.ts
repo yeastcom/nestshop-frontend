@@ -21,8 +21,9 @@ export function middleware(req: NextRequest) {
   // --- ACCOUNT (CUSTOMER) ---
   if (pathname.startsWith("/account")) {
     const sid = req.cookies.get("customer.sid")?.value
-    const isLoggedIn = Boolean(sid)
-
+    const isGuest = req.cookies.get("customer.guest")?.value === "1"
+    const isLoggedIn = Boolean(sid) && !isGuest
+    console.log(sid)
     const isAuthPage =
       pathname === "/account/login" || pathname === "/account/register"
 

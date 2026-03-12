@@ -7,6 +7,7 @@ export const customerSchema = z.object({
   firstName: z.string(),
   lastName: z.string(),
   isActive: z.boolean(),
+  isGuest: z.boolean(),
   addresses: addressListSchema.optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),

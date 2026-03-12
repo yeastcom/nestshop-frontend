@@ -4,6 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 import { z } from "zod"
 import { cartSchema } from "@/lib/schemas/cart.schema"
+import { deliveryMethodListSchema } from "@/lib/schemas/delivery-method.schema"
 import { useCart } from "@/components/store/cart/cart-context"
 import { apiClient } from "@/lib/api.client"
 import { Button } from "@/components/ui/button"
@@ -16,6 +17,7 @@ type Cart = z.infer<typeof cartSchema>
 export default function CartPageClient({ initialCart }: { initialCart: Cart }) {
   const ctx = useCart()
   const [busyId, setBusyId] = React.useState<number | null>(null)
+  const [defaultShipping, setDefaultShipping] = React.useState<number | null>(null)
 
   // jeśli provider ma już cart, użyj go, ale na wejściu ustaw initialCart (na wszelki wypadek)
   React.useEffect(() => {
@@ -26,19 +28,26 @@ export default function CartPageClient({ initialCart }: { initialCart: Cart }) {
   const cart = (ctx?.cart ?? initialCart) as Cart
   const items = cart.items ?? []
 
-  const totalPrice = items.reduce(
+  React.useEffect(() => {
+    if (cart.deliveryMethod) return
+    apiClient("/delivery-methods", { schema: deliveryMethodListSchema })
+      .then((methods) => {
+        const active = methods.filter((m) => m.isActive)
+        if (active.length === 0) return
+        const def = active.reduce((a, b) => a.position <= b.position ? a : b)
+        setDefaultShipping(Number(def.price))
+      })
+      .catch(() => {})
+  }, [cart.deliveryMethod])
+
+  const itemsTotal = items.reduce(
     (sum, it) => sum + Number(it.unitPrice || 0) * Number(it.qty || 0),
     0,
   )
-
-  async function refresh() {
-    const newCart = await apiClient("/cart", {
-      method: "GET",
-      headers: { "x-cart-token": cart.token },
-      schema: cartSchema,
-    })
-    ctx?.setCart?.(newCart)
-  }
+  const shippingPrice = cart.deliveryMethod
+    ? Number(cart.deliveryMethod.price)
+    : (defaultShipping ?? null)
+  const totalPrice = itemsTotal + (shippingPrice ?? 0)
 
   async function updateQty(itemId: number, qty: number) {
     if (!Number.isFinite(qty) || qty < 1) return
@@ -165,10 +174,23 @@ export default function CartPageClient({ initialCart }: { initialCart: Cart }) {
 
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">Produkty</span>
-          <span>{totalPrice.toFixed(2).replace(".", ",")} zł</span>
+          <span>{itemsTotal.toFixed(2).replace(".", ",")} zł</span>
         </div>
 
-        <div className="mt-2 flex justify-between">
+        <div className="mt-2 flex justify-between text-sm">
+          <span className="text-muted-foreground">
+            Dostawa{!cart.deliveryMethod && shippingPrice !== null ? " (domyślna)" : ""}
+          </span>
+          <span>
+            {shippingPrice !== null
+              ? shippingPrice.toFixed(2).replace(".", ",") + " zł"
+              : "—"}
+          </span>
+        </div>
+
+        <Separator className="my-3" />
+
+        <div className="flex justify-between">
           <span className="text-muted-foreground">Razem</span>
           <span className="font-semibold">
             {totalPrice.toFixed(2).replace(".", ",")} zł

@@ -9,7 +9,9 @@ import {
   IconUsers,
   IconBrandProducthunt,
   IconFileText,
-  IconMenu
+  IconMenu,
+  IconTruck,
+  IconCreditCard,
 } from "@tabler/icons-react"
 
 import { NavMain } from "@/components/admin/nav-main"
@@ -70,6 +72,16 @@ const data = {
       title: "Menu",
       url: "/admin/menu",
       icon: IconMenu
+    },
+    {
+      title: "Metody dostawy",
+      url: "/admin/delivery-methods",
+      icon: IconTruck
+    },
+    {
+      title: "Metody płatności",
+      url: "/admin/payment-methods",
+      icon: IconCreditCard
     },
   ],
 }
